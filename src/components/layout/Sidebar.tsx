@@ -17,6 +17,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { disableDemoMode } from '@/lib/demo-data';
 import { TeamMember } from '@/lib/types';
 
 const navigation = [
@@ -40,6 +41,7 @@ export function Sidebar({ user }: SidebarProps) {
   const supabase = createClient();
 
   const handleLogout = async () => {
+    disableDemoMode();
     await supabase.auth.signOut();
     router.push('/login');
     router.refresh();

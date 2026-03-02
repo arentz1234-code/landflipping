@@ -6,6 +6,7 @@ import { formatDate } from '@/lib/utils';
 import { InviteMemberForm } from '@/components/settings/InviteMemberForm';
 import { MemberRoleSelect } from '@/components/settings/MemberRoleSelect';
 import { RemoveMemberButton } from '@/components/settings/RemoveMemberButton';
+import { CancelInviteButton } from '@/components/settings/CancelInviteButton';
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -23,6 +24,11 @@ export default async function SettingsPage() {
     .from('team_members')
     .select('*')
     .order('created_at', { ascending: true });
+
+  const { data: invitations } = await supabase
+    .from('invitations')
+    .select('*')
+    .order('created_at', { ascending: false });
 
   const isAdmin = currentMember?.role === 'admin';
 
@@ -88,6 +94,32 @@ export default async function SettingsPage() {
             ))}
           </div>
         </Card>
+
+        {/* Pending Invitations */}
+        {isAdmin && invitations && invitations.length > 0 && (
+          <Card>
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Pending Invitations</h2>
+              <p className="text-sm text-gray-500">{invitations.length} pending</p>
+            </div>
+            <div className="divide-y divide-gray-200">
+              {invitations.map((invite) => (
+                <div key={invite.id} className="py-3 flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-gray-900">{invite.email}</p>
+                    <p className="text-sm text-gray-500">Invited {formatDate(invite.created_at)}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Badge className={roleColors[invite.role as keyof typeof roleColors]}>
+                      {invite.role}
+                    </Badge>
+                    <CancelInviteButton inviteId={invite.id} email={invite.email} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
 
         {/* Account Info */}
         <Card>

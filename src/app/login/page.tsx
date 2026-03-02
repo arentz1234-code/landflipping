@@ -5,17 +5,27 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { MapPin } from 'lucide-react';
+import { MapPin, Play } from 'lucide-react';
+import { enableDemoMode } from '@/lib/demo-data';
 import toast from 'react-hot-toast';
 
 export default function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const router = useRouter();
   const supabase = createClient();
+
+  const handleDemoLogin = () => {
+    setDemoLoading(true);
+    enableDemoMode();
+    toast.success('Welcome to Demo Mode!');
+    router.push('/');
+    router.refresh();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,6 +41,32 @@ export default function LoginPage() {
         if (error) throw error;
 
         if (data.user) {
+          // Check if this is the first user (make them admin)
+          const { count } = await supabase
+            .from('team_members')
+            .select('*', { count: 'exact', head: true });
+
+          const isFirstUser = count === 0;
+
+          // Check if there's a pending invitation for this email
+          let assignedRole: 'admin' | 'member' | 'viewer' = 'member';
+
+          if (isFirstUser) {
+            assignedRole = 'admin';
+          } else {
+            const { data: invitation } = await supabase
+              .from('invitations')
+              .select('role')
+              .eq('email', email.toLowerCase())
+              .single();
+
+            if (invitation) {
+              assignedRole = invitation.role;
+              // Delete the invitation after use
+              await supabase.from('invitations').delete().eq('email', email.toLowerCase());
+            }
+          }
+
           // Create team member profile
           const { error: profileError } = await supabase
             .from('team_members')
@@ -38,7 +74,7 @@ export default function LoginPage() {
               id: data.user.id,
               full_name: fullName,
               email: email,
-              role: 'member',
+              role: assignedRole,
             });
 
           if (profileError) {
@@ -123,6 +159,22 @@ export default function LoginPage() {
                 ? 'Already have an account? Sign in'
                 : "Don't have an account? Sign up"}
             </button>
+          </div>
+
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleDemoLogin}
+              loading={demoLoading}
+              className="w-full"
+            >
+              <Play className="w-4 h-4 mr-2" />
+              Try Demo Mode
+            </Button>
+            <p className="text-xs text-gray-500 text-center mt-2">
+              No account needed - explore with sample data
+            </p>
           </div>
         </div>
       </div>

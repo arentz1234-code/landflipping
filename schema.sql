@@ -274,6 +274,18 @@ CREATE TABLE activity_log (
 );
 
 -- ============================================
+-- INVITATIONS (pre-register users with roles)
+-- ============================================
+
+CREATE TABLE invitations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT NOT NULL UNIQUE,
+  role user_role NOT NULL DEFAULT 'member',
+  invited_by UUID REFERENCES team_members(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ============================================
 -- INDEXES for performance
 -- ============================================
 
@@ -303,6 +315,7 @@ ALTER TABLE properties ENABLE ROW LEVEL SECURITY;
 ALTER TABLE deals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activity_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invitations ENABLE ROW LEVEL SECURITY;
 
 -- All authenticated team members can read/write everything
 CREATE POLICY "Team members full access" ON team_members FOR ALL USING (auth.uid() IN (SELECT id FROM team_members));
@@ -311,6 +324,10 @@ CREATE POLICY "Team members full access" ON properties FOR ALL USING (auth.uid()
 CREATE POLICY "Team members full access" ON deals FOR ALL USING (auth.uid() IN (SELECT id FROM team_members));
 CREATE POLICY "Team members full access" ON tasks FOR ALL USING (auth.uid() IN (SELECT id FROM team_members));
 CREATE POLICY "Team members full access" ON activity_log FOR ALL USING (auth.uid() IN (SELECT id FROM team_members));
+CREATE POLICY "Team members full access" ON invitations FOR ALL USING (auth.uid() IN (SELECT id FROM team_members));
+
+-- Allow anyone to read invitations (for signup check)
+CREATE POLICY "Anyone can check invitations" ON invitations FOR SELECT USING (true);
 
 -- Allow new users to insert themselves during signup
 CREATE POLICY "Users can insert own profile" ON team_members FOR INSERT WITH CHECK (auth.uid() = id);

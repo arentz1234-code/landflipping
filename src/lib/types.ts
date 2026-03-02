@@ -201,3 +201,11 @@ export interface ActivityLog {
   // Joined fields
   logged_by_member?: TeamMember;
 }
+
+export interface Invitation {
+  id: string;
+  email: string;
+  role: UserRole;
+  invited_by: string | null;
+  created_at: string;
+}
