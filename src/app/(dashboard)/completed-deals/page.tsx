@@ -6,74 +6,27 @@ import Link from 'next/link';
 import { Trophy, MapPin, DollarSign, Calendar, TrendingUp } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
-const isDevMode = () => process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || !process.env.NEXT_PUBLIC_SUPABASE_URL;
-
-const mockCompletedDeals = [
-  {
-    id: '1',
-    title: '15 Acres - Bastrop County',
-    stage: 'closed_won',
-    deal_type: 'acquisition',
-    offer_amount: 95000,
-    agreed_price: 90000,
-    closing_date: '2024-01-15',
-    property: { county: 'Bastrop', state: 'TX', acreage: 15 },
-    buyer_contact: { first_name: 'John', last_name: 'Smith' },
-    estimated_profit: 45000,
-  },
-  {
-    id: '2',
-    title: '8 Acres - Hays County',
-    stage: 'closed_won',
-    deal_type: 'disposition',
-    offer_amount: 120000,
-    agreed_price: 115000,
-    closing_date: '2024-02-01',
-    property: { county: 'Hays', state: 'TX', acreage: 8 },
-    buyer_contact: { first_name: 'Sarah', last_name: 'Johnson' },
-    estimated_profit: 35000,
-  },
-  {
-    id: '3',
-    title: '25 Acres - Williamson County',
-    stage: 'closed_won',
-    deal_type: 'acquisition',
-    offer_amount: 200000,
-    agreed_price: 185000,
-    closing_date: '2024-02-20',
-    property: { county: 'Williamson', state: 'TX', acreage: 25 },
-    buyer_contact: { first_name: 'Mike', last_name: 'Thompson' },
-    estimated_profit: 75000,
-  },
-];
-
 export default async function CompletedDealsPage() {
-  let deals: any[] = [];
+  const supabase = await createClient();
 
-  if (isDevMode()) {
-    deals = mockCompletedDeals;
-  } else {
-    const supabase = await createClient();
-    const { data } = await supabase
-      .from('deals')
-      .select(`
-        *,
-        property:properties(county, state, acreage),
-        buyer_contact:contacts!buyer_contact_id(first_name, last_name)
-      `)
-      .eq('stage', 'closed_won')
-      .order('closing_date', { ascending: false });
-    deals = data || [];
-  }
+  const { data: deals } = await supabase
+    .from('deals')
+    .select(`
+      *,
+      property:properties(county, state, acreage),
+      buyer_contact:contacts!buyer_contact_id(first_name, last_name)
+    `)
+    .eq('stage', 'closed_won')
+    .order('closing_date', { ascending: false });
 
-  const totalProfit = deals.reduce((sum, d) => sum + (d.estimated_profit || 0), 0);
-  const totalVolume = deals.reduce((sum, d) => sum + (d.agreed_price || 0), 0);
+  const totalProfit = (deals || []).reduce((sum, d) => sum + (d.estimated_profit || 0), 0);
+  const totalVolume = (deals || []).reduce((sum, d) => sum + (d.agreed_price || 0), 0);
 
   return (
     <div>
       <Header
         title="Completed Deals"
-        subtitle={`${deals.length} deals closed`}
+        subtitle={`${deals?.length || 0} deals closed`}
       />
 
       {/* Summary Stats */}
@@ -84,7 +37,7 @@ export default async function CompletedDealsPage() {
           </div>
           <div>
             <p className="text-sm text-gray-500">Total Deals</p>
-            <p className="text-2xl font-bold text-gray-900">{deals.length}</p>
+            <p className="text-2xl font-bold text-gray-900">{deals?.length || 0}</p>
           </div>
         </Card>
         <Card className="flex items-center gap-4">
@@ -109,7 +62,7 @@ export default async function CompletedDealsPage() {
 
       {/* Deals List */}
       <div className="space-y-4">
-        {deals.length > 0 ? (
+        {deals && deals.length > 0 ? (
           deals.map((deal) => (
             <Link key={deal.id} href={`/completed-deals/${deal.id}`}>
               <Card className="hover:shadow-md transition-shadow">

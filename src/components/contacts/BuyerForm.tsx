@@ -11,10 +11,6 @@ import { TagInput } from '@/components/ui/TagInput';
 import { createClient } from '@/lib/supabase/client';
 import toast from 'react-hot-toast';
 
-const isDevMode = () => typeof window !== 'undefined' && (
-  process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || !process.env.NEXT_PUBLIC_SUPABASE_URL
-);
-
 interface BuyerFormProps {
   buyer?: any;
 }
@@ -46,12 +42,6 @@ export function BuyerForm({ buyer }: BuyerFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
-    if (isDevMode()) {
-      toast.success(isEditing ? 'Buyer updated!' : 'Buyer created!');
-      router.push('/buyers');
-      return;
-    }
 
     try {
       const data = {

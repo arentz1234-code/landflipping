@@ -7,77 +7,16 @@ import Link from 'next/link';
 import { Plus, Phone, Mail, MapPin, DollarSign } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 
-const isDevMode = () => process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || !process.env.NEXT_PUBLIC_SUPABASE_URL;
-
-const mockBuyers = [
-  {
-    id: '1',
-    contact_type: 'buyer',
-    first_name: 'John',
-    last_name: 'Smith',
-    company_name: 'Smith Investments',
-    email: 'john@smith.com',
-    phone: '512-555-0101',
-    city: 'Austin',
-    state: 'TX',
-    counties_of_interest: ['Travis', 'Williamson', 'Hays'],
-    min_acreage: 5,
-    max_acreage: 50,
-    max_total_budget: 500000,
-    status: 'active',
-    notes: 'Looking for land to hold long-term',
-  },
-  {
-    id: '2',
-    contact_type: 'buyer',
-    first_name: 'Sarah',
-    last_name: 'Johnson',
-    email: 'sarah@email.com',
-    phone: '512-555-0102',
-    city: 'Round Rock',
-    state: 'TX',
-    counties_of_interest: ['Williamson'],
-    min_acreage: 1,
-    max_acreage: 10,
-    max_total_budget: 150000,
-    status: 'active',
-    notes: 'First-time land buyer',
-  },
-  {
-    id: '3',
-    contact_type: 'buyer',
-    first_name: 'Michael',
-    last_name: 'Davis',
-    company_name: 'Davis Land Co',
-    email: 'michael@davisland.com',
-    phone: '512-555-0103',
-    city: 'Georgetown',
-    state: 'TX',
-    counties_of_interest: ['Williamson', 'Bell'],
-    min_acreage: 10,
-    max_acreage: 100,
-    max_total_budget: 1000000,
-    status: 'active',
-    notes: 'Experienced investor, quick closer',
-  },
-];
-
 export default async function BuyersPage() {
-  let buyers: any[] = [];
+  const supabase = await createClient();
 
-  if (isDevMode()) {
-    buyers = mockBuyers;
-  } else {
-    const supabase = await createClient();
-    const { data } = await supabase
-      .from('contacts')
-      .select('*')
-      .eq('contact_type', 'buyer')
-      .order('created_at', { ascending: false });
-    buyers = data || [];
-  }
+  const { data: buyers } = await supabase
+    .from('contacts')
+    .select('*')
+    .eq('contact_type', 'buyer')
+    .order('created_at', { ascending: false });
 
-  const activeBuyers = buyers.filter(b => b.status === 'active');
+  const activeBuyers = (buyers || []).filter(b => b.status === 'active');
 
   return (
     <div>
@@ -95,7 +34,7 @@ export default async function BuyersPage() {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {buyers.length > 0 ? (
+        {buyers && buyers.length > 0 ? (
           buyers.map((buyer) => (
             <Link key={buyer.id} href={`/buyers/${buyer.id}`}>
               <Card className="hover:shadow-md transition-shadow h-full">

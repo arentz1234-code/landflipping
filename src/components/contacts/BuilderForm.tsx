@@ -11,10 +11,6 @@ import { TagInput } from '@/components/ui/TagInput';
 import { createClient } from '@/lib/supabase/client';
 import toast from 'react-hot-toast';
 
-const isDevMode = () => typeof window !== 'undefined' && (
-  process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || !process.env.NEXT_PUBLIC_SUPABASE_URL
-);
-
 interface BuilderFormProps {
   builder?: any;
 }
@@ -48,12 +44,6 @@ export function BuilderForm({ builder }: BuilderFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
-    if (isDevMode()) {
-      toast.success(isEditing ? 'Builder updated!' : 'Builder created!');
-      router.push('/builders');
-      return;
-    }
 
     try {
       const data = {

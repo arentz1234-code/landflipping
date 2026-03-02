@@ -15,69 +15,43 @@ import {
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 
-const isDevMode = () => process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || !process.env.NEXT_PUBLIC_SUPABASE_URL;
-
-const mockTeamMembers = [
-  { id: 'demo-user', full_name: 'Demo User', email: 'demo@example.com', role: 'admin', created_at: new Date().toISOString() },
-  { id: 'member-2', full_name: 'Jane Smith', email: 'jane@example.com', role: 'member', created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() },
-  { id: 'member-3', full_name: 'Bob Wilson', email: 'bob@example.com', role: 'viewer', created_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString() },
-];
-
-const mockStats = {
-  totalBuyers: 12,
-  totalBuilders: 8,
-  totalDeals: 25,
-  completedDeals: 6,
-  totalTasks: 45,
-  completedTasks: 32,
-};
-
-const mockActivityLog = [
-  { id: '1', action: 'Created new buyer', user: 'Demo User', timestamp: new Date().toISOString() },
-  { id: '2', action: 'Closed deal: 15 Acres Bastrop', user: 'Demo User', timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() },
-  { id: '3', action: 'Added new builder', user: 'Jane Smith', timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString() },
-  { id: '4', action: 'Updated task status', user: 'Demo User', timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() },
-];
-
 export default async function AdminPage() {
-  let teamMembers: any[] = [];
-  let stats = mockStats;
-  let activityLog = mockActivityLog;
-  let currentUser: any = null;
+  const supabase = await createClient();
 
-  if (isDevMode()) {
-    teamMembers = mockTeamMembers;
-    currentUser = mockTeamMembers[0];
-  } else {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
 
-    if (user) {
-      const { data: tm } = await supabase.from('team_members').select('*').order('created_at');
-      const { data: cu } = await supabase.from('team_members').select('*').eq('id', user.id).single();
-
-      // Get real stats
-      const [buyers, builders, deals, tasks] = await Promise.all([
-        supabase.from('contacts').select('*', { count: 'exact', head: true }).eq('contact_type', 'buyer'),
-        supabase.from('contacts').select('*', { count: 'exact', head: true }).eq('contact_type', 'builder'),
-        supabase.from('deals').select('*', { count: 'exact', head: true }),
-        supabase.from('tasks').select('*', { count: 'exact', head: true }),
-      ]);
-
-      teamMembers = tm || [];
-      currentUser = cu;
-      stats = {
-        totalBuyers: buyers.count || 0,
-        totalBuilders: builders.count || 0,
-        totalDeals: deals.count || 0,
-        completedDeals: 0,
-        totalTasks: tasks.count || 0,
-        completedTasks: 0,
-      };
-    }
-  }
+  const [
+    { data: teamMembers },
+    { data: currentUser },
+    { count: buyersCount },
+    { count: buildersCount },
+    { count: dealsCount },
+    { count: completedDealsCount },
+    { count: tasksCount },
+    { count: completedTasksCount },
+    { data: activityLog },
+  ] = await Promise.all([
+    supabase.from('team_members').select('*').order('created_at'),
+    supabase.from('team_members').select('*').eq('id', user?.id).single(),
+    supabase.from('contacts').select('*', { count: 'exact', head: true }).eq('contact_type', 'buyer'),
+    supabase.from('contacts').select('*', { count: 'exact', head: true }).eq('contact_type', 'builder'),
+    supabase.from('deals').select('*', { count: 'exact', head: true }),
+    supabase.from('deals').select('*', { count: 'exact', head: true }).eq('stage', 'closed_won'),
+    supabase.from('tasks').select('*', { count: 'exact', head: true }),
+    supabase.from('tasks').select('*', { count: 'exact', head: true }).eq('status', 'done'),
+    supabase.from('activity_log').select('*, logged_by_member:team_members(full_name)').order('created_at', { ascending: false }).limit(10),
+  ]);
 
   const isAdmin = currentUser?.role === 'admin';
+
+  const stats = {
+    totalBuyers: buyersCount || 0,
+    totalBuilders: buildersCount || 0,
+    totalDeals: dealsCount || 0,
+    completedDeals: completedDealsCount || 0,
+    totalTasks: tasksCount || 0,
+    completedTasks: completedTasksCount || 0,
+  };
 
   const roleColors: Record<string, string> = {
     admin: 'bg-purple-100 text-purple-700',
@@ -145,18 +119,18 @@ export default async function AdminPage() {
             )}
           </div>
           <div className="space-y-3">
-            {teamMembers.map((member) => (
+            {teamMembers && teamMembers.map((member) => (
               <div key={member.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-gray-600 font-medium">
-                    {member.full_name.charAt(0).toUpperCase()}
+                    {member.full_name?.charAt(0).toUpperCase() || '?'}
                   </div>
                   <div>
                     <p className="font-medium text-gray-900">{member.full_name}</p>
                     <p className="text-sm text-gray-500">{member.email}</p>
                   </div>
                 </div>
-                <Badge className={roleColors[member.role]}>
+                <Badge className={roleColors[member.role] || roleColors.viewer}>
                   {member.role}
                 </Badge>
               </div>
@@ -171,17 +145,21 @@ export default async function AdminPage() {
             <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
           </div>
           <div className="space-y-3">
-            {activityLog.map((log) => (
-              <div key={log.id} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50">
-                <div className="w-2 h-2 mt-2 rounded-full bg-blue-500" />
-                <div className="flex-1">
-                  <p className="text-sm text-gray-900">{log.action}</p>
-                  <p className="text-xs text-gray-500">
-                    by {log.user} • {formatDate(log.timestamp)}
-                  </p>
+            {activityLog && activityLog.length > 0 ? (
+              activityLog.map((log) => (
+                <div key={log.id} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50">
+                  <div className="w-2 h-2 mt-2 rounded-full bg-blue-500" />
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-900">{log.subject || log.activity_type}</p>
+                    <p className="text-xs text-gray-500">
+                      by {log.logged_by_member?.full_name || 'Unknown'} • {formatDate(log.created_at)}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-sm text-gray-500 text-center py-4">No recent activity</p>
+            )}
           </div>
         </Card>
 
@@ -235,13 +213,9 @@ export default async function AdminPage() {
             <div className="flex items-center justify-between p-4 rounded-lg border border-gray-200">
               <div>
                 <p className="font-medium text-gray-900">Database Status</p>
-                <p className="text-sm text-gray-500">
-                  {isDevMode() ? 'Demo Mode (No database)' : 'Connected to Supabase'}
-                </p>
+                <p className="text-sm text-gray-500">Connected to Supabase</p>
               </div>
-              <Badge className={isDevMode() ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}>
-                {isDevMode() ? 'Demo' : 'Live'}
-              </Badge>
+              <Badge className="bg-green-100 text-green-700">Live</Badge>
             </div>
             <div className="flex items-center justify-between p-4 rounded-lg border border-gray-200">
               <div>
@@ -254,7 +228,7 @@ export default async function AdminPage() {
               <div className="flex items-center justify-between p-4 rounded-lg border border-red-200 bg-red-50">
                 <div>
                   <p className="font-medium text-red-900">Danger Zone</p>
-                  <p className="text-sm text-red-600">Clear all demo data</p>
+                  <p className="text-sm text-red-600">Clear all data (irreversible)</p>
                 </div>
                 <Button variant="secondary" size="sm" className="border-red-300 text-red-600 hover:bg-red-100">
                   <Trash2 className="w-4 h-4 mr-2" />

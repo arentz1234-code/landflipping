@@ -7,63 +7,24 @@ import { notFound } from 'next/navigation';
 import { Trophy, MapPin, DollarSign, Calendar, TrendingUp, User } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
-const isDevMode = () => process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || !process.env.NEXT_PUBLIC_SUPABASE_URL;
-
-const mockDeals: Record<string, any> = {
-  '1': {
-    id: '1',
-    title: '15 Acres - Bastrop County',
-    stage: 'closed_won',
-    deal_type: 'acquisition',
-    offer_amount: 95000,
-    agreed_price: 90000,
-    closing_date: '2024-01-15',
-    property: { county: 'Bastrop', state: 'TX', acreage: 15, address: '1234 County Road' },
-    buyer_contact: { first_name: 'John', last_name: 'Smith', company_name: 'Smith Investments' },
-    estimated_profit: 45000,
-    notes: 'Clean title, quick closing. Buyer plans to hold for appreciation.',
-    created_at: '2023-12-01',
-  },
-  '2': {
-    id: '2',
-    title: '8 Acres - Hays County',
-    stage: 'closed_won',
-    deal_type: 'disposition',
-    offer_amount: 120000,
-    agreed_price: 115000,
-    closing_date: '2024-02-01',
-    property: { county: 'Hays', state: 'TX', acreage: 8 },
-    buyer_contact: { first_name: 'Mike', last_name: 'Thompson', company_name: 'Thompson Custom Homes' },
-    estimated_profit: 35000,
-    notes: 'Sold to builder for custom home development.',
-    created_at: '2024-01-01',
-  },
-};
-
 export default async function CompletedDealDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  let deal: any = null;
+  const supabase = await createClient();
 
-  if (isDevMode()) {
-    deal = mockDeals[id];
-  } else {
-    const supabase = await createClient();
-    const { data } = await supabase
-      .from('deals')
-      .select(`
-        *,
-        property:properties(county, state, acreage, address),
-        buyer_contact:contacts!buyer_contact_id(first_name, last_name, company_name)
-      `)
-      .eq('id', id)
-      .eq('stage', 'closed_won')
-      .single();
-    deal = data;
-  }
+  const { data: deal } = await supabase
+    .from('deals')
+    .select(`
+      *,
+      property:properties(county, state, acreage, address),
+      buyer_contact:contacts!buyer_contact_id(first_name, last_name, company_name)
+    `)
+    .eq('id', id)
+    .eq('stage', 'closed_won')
+    .single();
 
   if (!deal) {
     notFound();

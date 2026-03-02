@@ -19,82 +19,31 @@ import {
 import { DealStage, TaskPriority } from '@/lib/types';
 import Link from 'next/link';
 
-const isDevMode = () => {
-  return process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || !process.env.NEXT_PUBLIC_SUPABASE_URL;
-};
-
-const mockBuyers = [
-  { id: '1', first_name: 'John', last_name: 'Smith', status: 'active' },
-  { id: '2', first_name: 'Sarah', last_name: 'Johnson', status: 'active' },
-  { id: '3', first_name: 'Michael', last_name: 'Davis', status: 'active' },
-];
-
-const mockBuilders = [
-  { id: '1', first_name: 'Mike', last_name: 'Thompson', company_name: 'Thompson Custom Homes', status: 'active' },
-  { id: '2', first_name: 'Lisa', last_name: 'Rodriguez', company_name: 'Rodriguez Development', status: 'active' },
-];
-
-const mockTasks = [
-  { id: '1', title: 'Call seller about Travis property', priority: 'high', due_date: new Date().toISOString().split('T')[0], status: 'todo' },
-  { id: '2', title: 'Send offer letter', priority: 'medium', due_date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], status: 'todo' },
-  { id: '3', title: 'Schedule site visit', priority: 'low', due_date: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], status: 'in_progress' },
-];
-
-const mockCompletedDeals = [
-  { id: '1', title: '15 Acres - Bastrop', stage: 'closed_won', agreed_price: 90000, estimated_profit: 45000 },
-  { id: '2', title: '8 Acres - Hays', stage: 'closed_won', agreed_price: 115000, estimated_profit: 35000 },
-];
-
-const mockActiveDeals = [
-  { id: '3', title: '10 Acres - Travis', stage: 'negotiating', offer_amount: 150000 },
-  { id: '4', title: '5 Acres - Williamson', stage: 'under_contract', agreed_price: 85000 },
-];
-
 export default async function DashboardPage() {
-  let buyers: any[] = [];
-  let builders: any[] = [];
-  let tasks: any[] = [];
-  let completedDeals: any[] = [];
-  let activeDeals: any[] = [];
+  const supabase = await createClient();
 
-  if (isDevMode()) {
-    buyers = mockBuyers;
-    builders = mockBuilders;
-    tasks = mockTasks;
-    completedDeals = mockCompletedDeals;
-    activeDeals = mockActiveDeals;
-  } else {
-    const supabase = await createClient();
+  const [
+    { data: buyers },
+    { data: builders },
+    { data: tasks },
+    { data: completedDeals },
+    { data: activeDeals },
+  ] = await Promise.all([
+    supabase.from('contacts').select('*').eq('contact_type', 'buyer').eq('status', 'active'),
+    supabase.from('contacts').select('*').eq('contact_type', 'builder').eq('status', 'active'),
+    supabase.from('tasks').select('*').neq('status', 'done').order('due_date', { ascending: true }).limit(5),
+    supabase.from('deals').select('*').eq('stage', 'closed_won').order('closing_date', { ascending: false }).limit(5),
+    supabase.from('deals').select('*').not('stage', 'in', '(closed_won,closed_lost,dead)').order('created_at', { ascending: false }),
+  ]);
 
-    const [
-      { data: b },
-      { data: bl },
-      { data: t },
-      { data: cd },
-      { data: ad },
-    ] = await Promise.all([
-      supabase.from('contacts').select('*').eq('contact_type', 'buyer').eq('status', 'active'),
-      supabase.from('contacts').select('*').eq('contact_type', 'builder').eq('status', 'active'),
-      supabase.from('tasks').select('*').neq('status', 'done').order('due_date', { ascending: true }).limit(5),
-      supabase.from('deals').select('*').eq('stage', 'closed_won').order('closing_date', { ascending: false }).limit(5),
-      supabase.from('deals').select('*').not('stage', 'in', '(closed_won,closed_lost,dead)').order('created_at', { ascending: false }),
-    ]);
-
-    buyers = b || [];
-    builders = bl || [];
-    tasks = t || [];
-    completedDeals = cd || [];
-    activeDeals = ad || [];
-  }
-
-  const totalProfit = completedDeals.reduce((sum, d) => sum + (d.estimated_profit || 0), 0);
-  const pipelineValue = activeDeals.reduce((sum, d) => sum + (d.agreed_price || d.offer_amount || 0), 0);
-  const pendingTasks = tasks.filter(t => t.status === 'todo').length;
+  const totalProfit = (completedDeals || []).reduce((sum, d) => sum + (d.estimated_profit || 0), 0);
+  const pipelineValue = (activeDeals || []).reduce((sum, d) => sum + (d.agreed_price || d.offer_amount || 0), 0);
+  const pendingTasks = (tasks || []).filter(t => t.status === 'todo').length;
 
   const stats = [
     {
       name: 'Active Buyers',
-      value: buyers.length,
+      value: buyers?.length || 0,
       icon: Users,
       color: 'text-blue-600',
       bg: 'bg-blue-100',
@@ -102,7 +51,7 @@ export default async function DashboardPage() {
     },
     {
       name: 'Active Builders',
-      value: builders.length,
+      value: builders?.length || 0,
       icon: HardHat,
       color: 'text-purple-600',
       bg: 'bg-purple-100',
@@ -118,7 +67,7 @@ export default async function DashboardPage() {
     },
     {
       name: 'Completed Deals',
-      value: completedDeals.length,
+      value: completedDeals?.length || 0,
       subValue: formatCurrency(totalProfit) + ' profit',
       icon: Trophy,
       color: 'text-green-600',
@@ -164,7 +113,7 @@ export default async function DashboardPage() {
           </div>
         </div>
         <div className="space-y-3">
-          {activeDeals.length > 0 ? (
+          {activeDeals && activeDeals.length > 0 ? (
             activeDeals.slice(0, 5).map((deal) => (
               <Link key={deal.id} href={`/deals/${deal.id}`}>
                 <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
@@ -204,7 +153,7 @@ export default async function DashboardPage() {
             </Link>
           </div>
           <div className="space-y-3">
-            {tasks.length > 0 ? (
+            {tasks && tasks.length > 0 ? (
               tasks.slice(0, 5).map((task) => (
                 <div
                   key={task.id}
@@ -241,7 +190,7 @@ export default async function DashboardPage() {
             </Link>
           </div>
           <div className="space-y-3">
-            {completedDeals.length > 0 ? (
+            {completedDeals && completedDeals.length > 0 ? (
               completedDeals.slice(0, 5).map((deal) => (
                 <Link key={deal.id} href={`/completed-deals/${deal.id}`}>
                   <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">

@@ -7,51 +7,22 @@ import { InviteMemberForm } from '@/components/settings/InviteMemberForm';
 import { MemberRoleSelect } from '@/components/settings/MemberRoleSelect';
 import { RemoveMemberButton } from '@/components/settings/RemoveMemberButton';
 
-const isDevMode = () => process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || !process.env.NEXT_PUBLIC_SUPABASE_URL;
-
-const mockCurrentMember = {
-  id: 'demo-user',
-  full_name: 'Demo User',
-  email: 'demo@example.com',
-  role: 'admin',
-  created_at: new Date().toISOString(),
-};
-
-const mockTeamMembers = [
-  { id: 'demo-user', full_name: 'Demo User', email: 'demo@example.com', role: 'admin', created_at: new Date().toISOString() },
-  { id: 'member-2', full_name: 'Jane Smith', email: 'jane@example.com', role: 'member', created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() },
-];
-
 export default async function SettingsPage() {
-  let currentMember: any = null;
-  let teamMembers: any[] = [];
-  let userId = 'demo-user';
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  if (isDevMode()) {
-    currentMember = mockCurrentMember;
-    teamMembers = mockTeamMembers;
-  } else {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+  const userId = user?.id || '';
 
-    if (user) {
-      userId = user.id;
-    }
+  const { data: currentMember } = await supabase
+    .from('team_members')
+    .select('*')
+    .eq('id', userId)
+    .single();
 
-    const { data: cm } = await supabase
-      .from('team_members')
-      .select('*')
-      .eq('id', userId)
-      .single();
-
-    const { data: tm } = await supabase
-      .from('team_members')
-      .select('*')
-      .order('created_at', { ascending: true });
-
-    currentMember = cm;
-    teamMembers = tm || [];
-  }
+  const { data: teamMembers } = await supabase
+    .from('team_members')
+    .select('*')
+    .order('created_at', { ascending: true });
 
   const isAdmin = currentMember?.role === 'admin';
 
@@ -81,7 +52,7 @@ export default async function SettingsPage() {
               <div key={member.id} className="py-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-gray-600 font-medium">
-                    {member.full_name.charAt(0).toUpperCase()}
+                    {member.full_name?.charAt(0).toUpperCase() || '?'}
                   </div>
                   <div>
                     <p className="font-medium text-gray-900">
